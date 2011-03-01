@@ -6,7 +6,9 @@ Application::Application(int argc, char *argv[], QHostAddress hostname, int port
         QCoreApplication(argc,argv)
 {
     this->server = new QTcpServer();
+    this->drawTimer = new QTimer();
     connect(server,SIGNAL(newConnection()),this,SLOT(newConnection()));
+    connect(drawTimer,SIGNAL(timeout()),this,SLOT(drawTimeout()));
     this->server->listen(hostname,port);
 }
 
@@ -19,6 +21,7 @@ Application::~Application() {
     }
     this->server->close();
     delete server;
+    delete drawTimer;
 }
 
 void Application::newConnection() {
@@ -47,6 +50,14 @@ void Application::someoneSentData() {
         }
         if(byteArray == "chat\n") {
             this->receiveChatMessage(senderSock,senderSock->readLine());
+            continue;
+        }
+        if(byteArray == "toggle\n") {
+            this->enqueueClient(senderSock);
+            continue;
+        }
+        if(byteArray == "untoggle\n") {
+            this->dequeueClient(senderSock);
             continue;
         }
         this->sendToAllExceptSender(senderSock,byteArray);
@@ -90,4 +101,28 @@ void Application::clientDisconnected() {
     QString nickname = this->connections[senderSock];
     this->sendToAllExceptSender(senderSock,QString("out\n" + nickname + "\n").toAscii());
     this->connections.remove(senderSock);
+}
+
+void Application::enqueueClient(QTcpSocket *sock) {
+    this->drawQueue.push_back(sock);
+    if(drawQueue.size() == 1) {
+        this->drawTimeout();
+    }
+}
+
+void Application::dequeueClient(QTcpSocket *sock) {
+    this->drawQueue.removeAll(sock);
+}
+
+void Application::drawTimeout() {
+    if(drawQueue.size() > 0) {
+        static int number = 1; // tymczasowo
+        this->drawTimer->setInterval(2000);
+        QTcpSocket *drawSocket = this->drawQueue.takeFirst();
+        number++; // tymczasowo
+        // tymczasowo
+        drawSocket->write(QString("drawstart\nslowo" + QString::number(number) + "\n").toAscii());
+        this->drawQueue.push_back(drawSocket);
+        this->drawTimer->start();
+    }
 }
