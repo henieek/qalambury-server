@@ -8,16 +8,23 @@
 #include <QMap>
 #include <QTimer>
 
+#include "dictonary.h"
+
 class Application : public QCoreApplication
 {
     Q_OBJECT
 private:
+    int drawInterval;
+    int port;
     QList<QTcpSocket*> drawQueue;
     QTcpServer *server;
     QMap<QTcpSocket*,QString> connections;
     QMap<QTcpSocket*,unsigned short int> pendingConnections;
     QTimer  *drawTimer;
     void sendToAllExceptSender(QTcpSocket*,QByteArray);
+    bool argumentsPositive(int,int);
+    void sendServerSettings(QTcpSocket*);
+    Dictonary *dictonary;
 private slots:
     void newConnection();
     void someoneSentData();
@@ -29,7 +36,7 @@ private slots:
     void dequeueClient(QTcpSocket*);
     void drawTimeout();
 public:
-    Application(int argc, char *argv[], QHostAddress hostname = QHostAddress::Any, int port = 9001);
+    Application(int argc, char *argv[], QHostAddress hostname = QHostAddress::Any);
     ~Application();
 signals:
 public slots:

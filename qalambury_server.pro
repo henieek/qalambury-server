@@ -8,5 +8,7 @@ DEPENDPATH += .
 INCLUDEPATH += .
 QT += network
 # Input
-HEADERS += application.h
-SOURCES += application.cpp main.cpp
+HEADERS += application.h \
+    dictonary.h
+SOURCES += application.cpp main.cpp \
+    dictonary.cpp

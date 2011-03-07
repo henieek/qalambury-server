@@ -2,14 +2,25 @@
 
 #include <QDebug>
 
-Application::Application(int argc, char *argv[], QHostAddress hostname, int port) :
+Application::Application(int argc, char *argv[], QHostAddress hostname) :
         QCoreApplication(argc,argv)
 {
+    if(argc == 2 && argumentsPositive(atoi(argv[1]),atoi(argv[2]))) {
+        this->port = atoi(argv[1]);
+        this->drawInterval = atoi(argv[2]);
+    }
+    else {
+        this->port = 9001;
+        this->drawInterval = 10000; // 10s
+    }
+
+	this->dictonary = new Dictonary("dict.txt");
+
     this->server = new QTcpServer();
     this->drawTimer = new QTimer();
     connect(server,SIGNAL(newConnection()),this,SLOT(newConnection()));
     connect(drawTimer,SIGNAL(timeout()),this,SLOT(drawTimeout()));
-    this->server->listen(hostname,port);
+    this->server->listen(hostname,this->port);
 }
 
 Application::~Application() {
@@ -22,6 +33,11 @@ Application::~Application() {
     this->server->close();
     delete server;
     delete drawTimer;
+	delete dictonary;
+}
+
+bool Application::argumentsPositive(int port, int timeInterval) {
+    return port > 0 && port < 65535 && timeInterval > 0;
 }
 
 void Application::newConnection() {
@@ -67,8 +83,13 @@ void Application::someoneSentData() {
 void Application::registerLogin(QTcpSocket *sock, QString loginName) {
     this->pendingConnections.remove(sock);
     this->connections.insert(sock,loginName);
+    this->sendServerSettings(sock);
     this->sendNicknamesToClient(sock);
     this->sendToAllExceptSender(sock,QString("log\n" + loginName + "\n").toStdString().c_str());
+}
+
+void Application::sendServerSettings(QTcpSocket *sock) {
+    sock->write(QString("settings\n" + QString::number(this->drawInterval) + "\n").toAscii());
 }
 
 void Application::sendToAllExceptSender(QTcpSocket *mySock, QByteArray data) {
@@ -83,7 +104,6 @@ void Application::sendToAllExceptSender(QTcpSocket *mySock, QByteArray data) {
 void Application::receiveChatMessage(QTcpSocket *sock, QByteArray byteArray) {
     QString nickname = this->connections[sock];
     QString message = "chat\n" + nickname + "\n" + QString(byteArray) + "\n";
-    qDebug() << "Wiadomosc od: " + nickname;
     this->sendToAllExceptSender(sock,message.toStdString().c_str());
 }
 
@@ -101,6 +121,7 @@ void Application::clientDisconnected() {
     QString nickname = this->connections[senderSock];
     this->sendToAllExceptSender(senderSock,QString("out\n" + nickname + "\n").toAscii());
     this->connections.remove(senderSock);
+    this->drawQueue.removeAll(senderSock);
 }
 
 void Application::enqueueClient(QTcpSocket *sock) {
@@ -116,12 +137,13 @@ void Application::dequeueClient(QTcpSocket *sock) {
 
 void Application::drawTimeout() {
     if(drawQueue.size() > 0) {
+		QString word = this->dictonary->nextWord();
         static int number = 1; // tymczasowo
-        this->drawTimer->setInterval(2000);
+        this->drawTimer->setInterval(this->drawInterval);
         QTcpSocket *drawSocket = this->drawQueue.takeFirst();
         number++; // tymczasowo
         // tymczasowo
-        drawSocket->write(QString("drawstart\nslowo" + QString::number(number) + "\n").toAscii());
+        drawSocket->write(QString("drawstart\n" + word + "\n").toAscii());
         this->drawQueue.push_back(drawSocket);
         this->drawTimer->start();
     }
