@@ -32,3 +32,7 @@ QString Dictonary::nextWord() {
 	}
 	return word;
 }
+
+QString Dictonary::getLastWord() const {
+    return this->lastWord;
+}

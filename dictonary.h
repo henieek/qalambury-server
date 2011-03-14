@@ -18,6 +18,7 @@ class Dictonary
 public:
     Dictonary(QString);
     QString nextWord();
+    QString getLastWord() const;
 };
 
 #endif // DICTONARY_H

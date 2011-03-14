@@ -14,7 +14,7 @@ Application::Application(int argc, char *argv[], QHostAddress hostname) :
         this->drawInterval = 10000; // 10s
     }
 
-	this->dictonary = new Dictonary("dict.txt");
+    this->dictonary = new Dictonary("dict.txt");
 
     this->server = new QTcpServer();
     this->drawTimer = new QTimer();
@@ -81,11 +81,18 @@ void Application::someoneSentData() {
 }
 
 void Application::registerLogin(QTcpSocket *sock, QString loginName) {
-    this->pendingConnections.remove(sock);
-    this->connections.insert(sock,loginName);
-    this->sendServerSettings(sock);
-    this->sendNicknamesToClient(sock);
-    this->sendToAllExceptSender(sock,QString("log\n" + loginName + "\n").toStdString().c_str());
+    if(this->players.contains(loginName)) {
+        sock->write(QByteArray("err\nlogtaken\n"));
+        sock->close();
+    }
+    else {
+        this->pendingConnections.remove(sock);
+        this->connections.insert(sock,loginName);
+        this->players.insert(loginName,0);
+        this->sendServerSettings(sock);
+        this->sendNicknamesToClient(sock);
+        this->sendToAllExceptSender(sock,QString("log\n" + loginName + "\n").toStdString().c_str());
+    }
 }
 
 void Application::sendServerSettings(QTcpSocket *sock) {
@@ -103,8 +110,13 @@ void Application::sendToAllExceptSender(QTcpSocket *mySock, QByteArray data) {
 
 void Application::receiveChatMessage(QTcpSocket *sock, QByteArray byteArray) {
     QString nickname = this->connections[sock];
-    QString message = "chat\n" + nickname + "\n" + QString(byteArray) + "\n";
-    this->sendToAllExceptSender(sock,message.toStdString().c_str());
+    QString message(QString(byteArray).replace(QString("\n"),QString("")));
+    QString protocolMessage = "chat\n" + nickname + "\n" + QString(byteArray) + "\n";
+    this->sendToAllExceptSender(sock,protocolMessage.toStdString().c_str());
+    if(message == this->dictonary->getLastWord()) {
+        // user zgadl haslo
+        this->drawTimeout();
+    }
 }
 
 void Application::sendNicknamesToClient(QTcpSocket *sock) {
@@ -118,8 +130,12 @@ void Application::sendNicknamesToClient(QTcpSocket *sock) {
 
 void Application::clientDisconnected() {
     QTcpSocket *senderSock = dynamic_cast<QTcpSocket*>(sender());
+    if(this->drawingSocket == senderSock) {
+        this->drawTimeout(); // niech rysuje ktos inny, jezeli rysujacy opuscil gre.
+    }
     QString nickname = this->connections[senderSock];
     this->sendToAllExceptSender(senderSock,QString("out\n" + nickname + "\n").toAscii());
+    this->players.remove(this->connections[senderSock]);
     this->connections.remove(senderSock);
     this->drawQueue.removeAll(senderSock);
 }
@@ -136,15 +152,16 @@ void Application::dequeueClient(QTcpSocket *sock) {
 }
 
 void Application::drawTimeout() {
+    this->drawingSocket = NULL;
     if(drawQueue.size() > 0) {
-		QString word = this->dictonary->nextWord();
+        QString word = this->dictonary->nextWord();
         static int number = 1; // tymczasowo
         this->drawTimer->setInterval(this->drawInterval);
-        QTcpSocket *drawSocket = this->drawQueue.takeFirst();
+        this->drawingSocket = this->drawQueue.takeFirst();
         number++; // tymczasowo
         // tymczasowo
-        drawSocket->write(QString("drawstart\n" + word + "\n").toAscii());
-        this->drawQueue.push_back(drawSocket);
+        drawingSocket->write(QString("drawstart\n" + word + "\n").toAscii());
+        this->drawQueue.push_back(drawingSocket);
         this->drawTimer->start();
     }
 }

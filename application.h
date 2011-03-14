@@ -20,11 +20,13 @@ private:
     QTcpServer *server;
     QMap<QTcpSocket*,QString> connections;
     QMap<QTcpSocket*,unsigned short int> pendingConnections;
+    QMap<QString,int> players;
     QTimer  *drawTimer;
     void sendToAllExceptSender(QTcpSocket*,QByteArray);
     bool argumentsPositive(int,int);
     void sendServerSettings(QTcpSocket*);
     Dictonary *dictonary;
+    QTcpSocket *drawingSocket;
 private slots:
     void newConnection();
     void someoneSentData();
